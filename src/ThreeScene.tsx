@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const ThreeScene: React.FC = () => {
     const mountRef = useRef<HTMLDivElement>(null);
@@ -9,27 +10,44 @@ const ThreeScene: React.FC = () => {
 
         // Scene
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xdddddd);
 
         // Camera
         const camera = new THREE.PerspectiveCamera(75, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
-        camera.position.z = 5;
+        camera.position.set(0, 6, 15);
 
         // Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
         mountRef.current.appendChild(renderer.domElement);
 
-        // Cube
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
+        // Lighting
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+        hemisphereLight.position.set(0, 20, 0);
+        scene.add(hemisphereLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff);
+        directionalLight.position.set(0, 20, 10);
+        scene.add(directionalLight);
+
+        // Model
+        const loader = new GLTFLoader();
+        loader.load(
+            '/src/assets/cpckwp_face-gltf/scene.gltf',
+            (gltf) => {
+                scene.add(gltf.scene);
+                gltf.scene.rotation.y = 0; // Adjust rotation if necessary
+                gltf.scene.scale.set(9, 9, 9);
+            },
+            undefined,
+            (error) => {
+                console.error(error);
+            }
+        );
 
         // Animation
         const animate = () => {
             requestAnimationFrame(animate);
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
             renderer.render(scene, camera);
         };
         animate();
