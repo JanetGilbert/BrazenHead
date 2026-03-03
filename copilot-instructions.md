@@ -25,3 +25,9 @@ This is a React/TypeScript application built with Vite that displays a 3D model 
 - When adding new 3D objects, be aware of their pivot points and be prepared to manually adjust their positions if they don't appear as expected.
 - If you need to add back `StrictMode`, ensure that the Three.js scene is properly cleaned up on component unmount to prevent memory leaks and visual artifacts from the double render.
 - Keep the scene lighting and camera position in mind when adding new objects to ensure they are visible.
+
+## Maintaining These Instructions
+
+- Keep these instructions up-to-date.
+- Remove obsolete information as the project evolves.
+- Add notes about new major architectural changes, dependencies, or important gotchas.

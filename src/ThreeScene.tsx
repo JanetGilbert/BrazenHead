@@ -33,12 +33,18 @@ const ThreeScene: React.FC = () => {
         // Model
         const loader = new GLTFLoader();
         loader.load(
-            '/src/assets/cpckwp_face-gltf/scene.gltf',
+            '/src/assets/face/face.gltf',
             (gltf) => {
                 const model = gltf.scene;
                 model.scale.set(80, 80, 80);
                 model.rotation.y = 0;
                 model.position.y = -75; // Manually adjust the position
+
+                model.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        console.log(child);
+                    }
+                });
 
                 scene.add(model);
             },
