@@ -30,6 +30,9 @@ const ThreeScene: React.FC = () => {
         directionalLight.position.set(0, 20, 10);
         scene.add(directionalLight);
 
+        let faceMesh: THREE.Mesh | undefined;
+        let hmmMorphTargetIndex: number | undefined;
+
         // Model
         const loader = new GLTFLoader();
         loader.load(
@@ -41,8 +44,14 @@ const ThreeScene: React.FC = () => {
                 model.position.y = -75; // Manually adjust the position
 
                 model.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        console.log(child);
+                    if (child instanceof THREE.Mesh && child.morphTargetInfluences) {
+                        faceMesh = child;
+                        if (faceMesh.morphTargetDictionary) {
+                            hmmMorphTargetIndex = faceMesh.morphTargetDictionary['Hmm'];
+                            if (hmmMorphTargetIndex !== undefined && faceMesh.morphTargetInfluences) {
+                                faceMesh.morphTargetInfluences[hmmMorphTargetIndex] = 1;
+                            }
+                        }
                     }
                 });
 
