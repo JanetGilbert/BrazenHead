@@ -1,41 +1,113 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
+/* ── Layout ── */
+.App {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.three-canvas {
+  width: 100%;
+  height: 100vh;
+}
+
+/* ── HUD overlay ── */
+.hud {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+  pointer-events: none; /* let clicks pass through to canvas except on buttons */
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+/* ── Buttons ── */
+.hud-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  color: #fff;
+}
+
+.hud-btn:hover {
+  transform: scale(1.05);
+}
+
+.hud-btn:active {
+  transform: scale(0.97);
+}
+
+.connect-btn {
+  background-color: #4a90d9;
+}
+.connect-btn:hover {
+  background-color: #3b7ac2;
+}
+
+.mic-btn {
+  background-color: #555;
+  min-width: 140px;
+}
+.mic-btn.active {
+  background-color: #d94a4a;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.disconnect-btn {
+  background-color: #888;
+  font-size: 0.85rem;
+  padding: 6px 16px;
+}
+.disconnect-btn:hover {
+  background-color: #666;
+}
+
+/* ── Status text ── */
+.hud-status {
+  color: #fff;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.hud-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Response bubble ── */
+.hud-response {
+  max-width: 400px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1.4;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* ── Pulse animation for active mic ── */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 74, 74, 0.5); }
+  50% { box-shadow: 0 0 0 10px rgba(217, 74, 74, 0); }
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}

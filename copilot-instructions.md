@@ -31,3 +31,6 @@ This is a React/TypeScript application built with Vite that displays a 3D model 
 - Keep these instructions up-to-date.
 - Remove obsolete information as the project evolves.
 - Add notes about new major architectural changes, dependencies, or important gotchas.
+
+## Conversational style
+Do not flatter, scrape or apologize.
