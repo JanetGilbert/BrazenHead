@@ -91,7 +91,10 @@ export async function connectInworld(
     });
 
   connection = client.build();
-  await connection.open();
+
+  // Don't call connection.open() — autoReconnect (default: true) manages
+  // the connection lifecycle. It opens automatically on first interaction.
+  onReady?.();
 
   return connection;
 }
