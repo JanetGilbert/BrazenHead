@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MOUTH_MORPH_NAMES, getBlendShapesForPhoneme } from './visemeMap';
+import { MOUTH_MORPH_NAMES, getBlendShapesForViseme } from './visemeMap';
 
 // ── Lerp speed for viseme transitions (higher = snappier) ──
 const VISEME_LERP_SPEED = 16;
@@ -33,7 +33,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
    * Sets the "target" morph-target weights; the render loop lerps toward them.
    */
   const setPhoneme = useCallback((phoneme: string) => {
-    const targets = getBlendShapesForPhoneme(phoneme);
+    const targets = getBlendShapesForViseme(phoneme);
     const pose = targetPoseRef.current;
 
     // Reset all mouth morphs to 0, then apply the new targets

@@ -1,32 +1,28 @@
 /**
- * Local development TTS proxy server.
+ * Server-side TTS proxy endpoint for Inworld.ai.
  *
- * Run with: npx tsx server/dev-token-server.ts
- * (or: npm run dev:server)
+ * Proxies TTS requests to the Inworld REST API, keeping the API key server-side.
  *
- * Proxies /api/tts requests to the Inworld TTS REST API,
- * keeping the API key server-side.
+ * Designed as a Vercel serverless function (api/tts.ts).
  *
- * Vite's dev proxy forwards /api/* to this server on port 3001.
+ * Environment variables required:
+ *   INWORLD_API_KEY — Inworld Basic API key (from your dashboard)
  */
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-dotenv.config({ path: '.env.local' });
-
-const PORT = 3001;
 const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-app.post('/api/tts', async (req, res) => {
   const apiKey = process.env.INWORLD_API_KEY;
-
   if (!apiKey) {
-    console.error('Missing INWORLD_API_KEY in .env.local');
+    console.error('Missing INWORLD_API_KEY env var');
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -61,14 +57,10 @@ app.post('/api/tts', async (req, res) => {
     }
 
     const data = await ttsResponse.json();
-    return res.json(data);
+    return res.status(200).json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('TTS proxy error:', message);
     return res.status(500).json({ error: 'TTS proxy error' });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`[dev-tts-proxy] listening on http://localhost:${PORT}`);
-});
+}

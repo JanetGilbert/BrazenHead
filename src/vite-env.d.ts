@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_INWORLD_SCENE: string;
-  readonly VITE_TOKEN_ENDPOINT: string;
+  readonly VITE_TTS_ENDPOINT: string;
 }
 
 interface ImportMeta {
