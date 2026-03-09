@@ -4,7 +4,7 @@ import type { ThreeSceneHandle } from './ThreeScene';
 import { speakText } from './ttsService';
 import './App.css';
 
-const TEST_TEXT = "Hello, adventurer! What a beautiful day, isn't it?";
+const TEST_TEXT = "Hello.";
 
 function App() {
   const [status, setStatus] = useState<'idle' | 'speaking' | 'error'>('idle');
@@ -27,6 +27,7 @@ function App() {
       await speakText(
         TEST_TEXT,
         (viseme) => {
+          console.log("viseme:" +viseme);
           sceneHandleRef.current?.setPhoneme(viseme);
         },
         (msg) => {

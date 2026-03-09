@@ -34,6 +34,8 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
    */
   const setPhoneme = useCallback((phoneme: string) => {
     const targets = getBlendShapesForViseme(phoneme);
+      console.log('setPhoneme:', phoneme, 'targets:', targets, 'targetPose after:');
+
     const pose = targetPoseRef.current;
 
     // Reset all mouth morphs to 0, then apply the new targets
@@ -43,6 +45,8 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
     for (const { morphName, weight } of targets) {
       pose.set(morphName, weight);
     }
+       console.log('targetPose:', Object.fromEntries(pose));
+
   }, []);
 
   useEffect(() => {
@@ -125,7 +129,14 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
           const current = currentPoseRef.current.get(name) ?? 0;
           const next = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
           currentPoseRef.current.set(name, next);
-          influences[idx] = next;
+          influences[idx] = next + 0.1;
+          if (next>0.00001){
+          console.log("idx " + idx + "next "+next);
+          }
+          /*        const blinkIdx = dict['Blink'];
+          if (blinkIdx !== undefined) {
+            influences[blinkIdx] = next;
+          }*/
         }
 
         // ── Idle blink ──
