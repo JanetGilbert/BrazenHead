@@ -54,7 +54,10 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
 
     // ── Scene ──
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdddddd);
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('/assets/lab.jpg', (texture) => {
+      scene.background = texture;
+    });
 
     // ── Camera ──
     const camera = new THREE.PerspectiveCamera(
@@ -87,7 +90,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
         const model = gltf.scene;
         model.scale.set(1, 1, 1);
         model.rotation.x = Math.PI * 0.5;
-        model.position.y = -6; // Manually adjust (pivot far below visual centre)
+        model.position.y = -4; // Manually adjust (pivot far below visual centre)
 
         model.traverse((child) => {
           if (child instanceof THREE.Mesh && child.morphTargetInfluences) {
@@ -130,13 +133,6 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
           const next = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
           currentPoseRef.current.set(name, next);
           influences[idx] = next;
-          if (next>0.00001){
-          console.log("idx " + idx + "next "+next);
-          }
-          /*        const blinkIdx = dict['Blink'];
-          if (blinkIdx !== undefined) {
-            influences[blinkIdx] = next;
-          }*/
         }
 
         // ── Idle blink ──
