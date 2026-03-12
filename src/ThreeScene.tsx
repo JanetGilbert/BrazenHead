@@ -85,9 +85,9 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
       '/assets/dummy/dummy.gltf',
       (gltf) => {
         const model = gltf.scene;
-        model.scale.set(80, 80, 80);
-        model.rotation.y = 0;
-        model.position.y = -75; // Manually adjust (pivot far below visual centre)
+        model.scale.set(1, 1, 1);
+        model.rotation.x = Math.PI * 0.5;
+        model.position.y = -6; // Manually adjust (pivot far below visual centre)
 
         model.traverse((child) => {
           if (child instanceof THREE.Mesh && child.morphTargetInfluences) {
