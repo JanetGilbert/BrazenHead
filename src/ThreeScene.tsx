@@ -82,7 +82,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
     // ── Load model ──
     const loader = new GLTFLoader();
     loader.load(
-      '/assets/face/face.gltf',
+      '/assets/dummy/dummy.gltf',
       (gltf) => {
         const model = gltf.scene;
         model.scale.set(80, 80, 80);
@@ -150,15 +150,16 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
             ? blinkProgress
             : Math.max(0, 2 - blinkProgress);
 
-          const blinkIdx = dict['Blink'];
-          if (blinkIdx !== undefined) {
-            influences[blinkIdx] = blinkWeight;
-          }
+          const blinkLeftIdx = dict['blink_left'];
+          const blinkRightIdx = dict['blink_right'];
+          if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = blinkWeight;
+          if (blinkRightIdx !== undefined) influences[blinkRightIdx] = blinkWeight;
 
           if (blinkProgress >= 2) {
             blinkProgress = -1;
             nextBlinkTime = elapsed + BLINK_MIN_INTERVAL + Math.random() * (BLINK_MAX_INTERVAL - BLINK_MIN_INTERVAL);
-            if (blinkIdx !== undefined) influences[blinkIdx] = 0;
+            if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = 0;
+            if (blinkRightIdx !== undefined) influences[blinkRightIdx] = 0;
           }
         }
       }

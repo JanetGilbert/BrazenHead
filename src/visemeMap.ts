@@ -2,7 +2,9 @@
  * Maps Inworld TTS viseme symbols to the model's morph target blend shapes.
  *
  * Inworld visemes:  sil, aei, o, ee, bmp, fv, l, r, th, qw, cdgknstxyz
- * Model blend shapes: Ah, Ch, U, E, Oh, Hmm, Wa
+ * Model blend shapes (dummy.gltf):
+ *   v_aa, v_ch, v_dd, v_ee, v_ff, v_ih, v_kk, v_nn, v_oh, v_ou, v_pp,
+ *   v_rr, v_sil, v_ss, v_th
  *
  * Each entry is { morphName, weight } — a single viseme can
  * drive multiple blend shapes simultaneously.
@@ -17,26 +19,27 @@ export interface MorphTarget {
 
 const visemeToBlendShapes: Record<string, MorphTarget[]> = {
   // ── Silence / rest ──
-  sil: [],                                                                      // Mouth closed
+  sil: [{ morphName: 'v_sil', weight: 1.0 }],                                              // Mouth closed
 
   // ── Vowels ──
-  aei: [{ morphName: 'Ah', weight: 0.8 }, { morphName: 'E', weight: 0.3 }],    // Open mouth vowels (a, e, i, ə, ʌ, æ, ɑ)
-  o:   [{ morphName: 'Oh', weight: 1.0 }],                                      // Rounded vowels (o, ʊ, əʊ, oʊ)
-  ee:  [{ morphName: 'E', weight: 0.9 }],                                       // Front vowels (i, ɪ, eɪ)
+  aei: [{ morphName: 'v_aa', weight: 0.8 }, { morphName: 'v_ih', weight: 0.3 }],            // Open mouth vowels (a, e, i, ə, ʌ, æ, ɑ)
+  o:   [{ morphName: 'v_oh', weight: 1.0 }],                                                // Rounded vowels (o, ʊ, əʊ, oʊ)
+  ee:  [{ morphName: 'v_ee', weight: 0.9 }],                                                // Front vowels (i, ɪ, eɪ)
 
   // ── Consonants ──
-  bmp:          [{ morphName: 'Hmm', weight: 0.9 }],                            // Bilabial (b, m, p)
-  fv:           [{ morphName: 'Hmm', weight: 0.5 }, { morphName: 'E', weight: 0.2 }], // Labiodental (f, v)
-  l:            [{ morphName: 'E', weight: 0.4 }, { morphName: 'Ah', weight: 0.1 }],  // Lateral (l)
-  r:            [{ morphName: 'Oh', weight: 0.3 }, { morphName: 'U', weight: 0.2 }],  // Rhotic (r, ɝ, ɚ)
-  th:           [{ morphName: 'E', weight: 0.3 }, { morphName: 'Ah', weight: 0.1 }],  // Dental fricatives (θ, ð)
-  qw:           [{ morphName: 'Wa', weight: 1.0 }],                             // Rounded consonants (w, ʍ)
-  cdgknstxyz:   [{ morphName: 'E', weight: 0.3 }],                              // Alveolar/velar (c, d, g, k, n, s, t, x, y, z)
+  bmp:          [{ morphName: 'v_pp', weight: 0.9 }],                                       // Bilabial (b, m, p)
+  fv:           [{ morphName: 'v_ff', weight: 0.9 }],                                       // Labiodental (f, v)
+  l:            [{ morphName: 'v_dd', weight: 0.4 }, { morphName: 'v_nn', weight: 0.2 }],   // Lateral (l)
+  r:            [{ morphName: 'v_rr', weight: 0.8 }],                                       // Rhotic (r, ɝ, ɚ)
+  th:           [{ morphName: 'v_th', weight: 0.8 }],                                       // Dental fricatives (θ, ð)
+  qw:           [{ morphName: 'v_ou', weight: 0.8 }, { morphName: 'v_oh', weight: 0.3 }],   // Rounded consonants (w, ʍ)
+  cdgknstxyz:   [{ morphName: 'v_kk', weight: 0.3 }, { morphName: 'v_ss', weight: 0.3 }, { morphName: 'v_dd', weight: 0.2 }], // Alveolar/velar (c, d, g, k, n, s, t, x, y, z)
 };
 
 /** All morph target names that this module drives (for resetting). */
 export const MOUTH_MORPH_NAMES = [
-  'Ah', 'Ch', 'U', 'E', 'Oh', 'Hmm', 'Wa',
+  'v_aa', 'v_ch', 'v_dd', 'v_ee', 'v_ff', 'v_ih', 'v_kk',
+  'v_nn', 'v_oh', 'v_ou', 'v_pp', 'v_rr', 'v_sil', 'v_ss', 'v_th',
 ] as const;
 
 /**
