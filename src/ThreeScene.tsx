@@ -129,7 +129,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
           const current = currentPoseRef.current.get(name) ?? 0;
           const next = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
           currentPoseRef.current.set(name, next);
-          influences[idx] = next + 0.1;
+          influences[idx] = next;
           if (next>0.00001){
           console.log("idx " + idx + "next "+next);
           }
