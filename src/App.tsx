@@ -35,6 +35,7 @@ function App() {
     setErrorMsg('');
     try {
       await startRecording();
+      sceneHandleRef.current?.setEyesClosed(true);
       setStatus('recording');
     } catch (err) {
       setStatus('error');
@@ -50,6 +51,7 @@ function App() {
     try {
       const transcript = await stopRecordingAndTranscribe();
       if (!transcript) {
+        sceneHandleRef.current?.setEyesClosed(false);
         setStatus('idle');
         return;
       }
@@ -65,9 +67,11 @@ function App() {
       conversationRef.current = [...conversationRef.current, { role: 'assistant', content: reply }];
 
       setStatus('speaking');
+      sceneHandleRef.current?.setEyesClosed(false);
       await speakText(reply, visemeHandler, errorHandler);
       setStatus('idle');
     } catch (err) {
+      sceneHandleRef.current?.setEyesClosed(false);
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'STT/Chat/TTS failed');
     }

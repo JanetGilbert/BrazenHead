@@ -14,6 +14,8 @@ const BLINK_DURATION = 0.15;      // seconds for one half-blink
 export interface ThreeSceneHandle {
   /** Set the target viseme pose from an IPA phoneme string. */
   setPhoneme: (phoneme: string) => void;
+  /** Hold eyes closed (e.g. while listening). */
+  setEyesClosed: (closed: boolean) => void;
 }
 
 interface ThreeSceneProps {
@@ -27,6 +29,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
   const faceMeshRef = useRef<THREE.Mesh | null>(null);
   const targetPoseRef = useRef<Map<string, number>>(new Map());
   const currentPoseRef = useRef<Map<string, number>>(new Map());
+  const eyesClosedRef = useRef(false);
 
   /**
    * Called by the Inworld service when a new phoneme arrives.
@@ -47,6 +50,10 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
     }
        console.log('targetPose:', Object.fromEntries(pose));
 
+  }, []);
+
+  const setEyesClosed = useCallback((closed: boolean) => {
+    eyesClosedRef.current = closed;
   }, []);
 
   useEffect(() => {
@@ -101,7 +108,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
         scene.add(model);
 
         // Notify parent that the scene is ready
-        onReady?.({ setPhoneme });
+        onReady?.({ setPhoneme, setEyesClosed });
       },
       undefined,
       (error) => console.error('GLTF load error:', error),
@@ -135,27 +142,51 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
           influences[idx] = next;
         }
 
-        // ── Idle blink ──
-        if (blinkProgress < 0 && elapsed >= nextBlinkTime) {
-          blinkProgress = 0;
-        }
-        if (blinkProgress >= 0) {
-          blinkProgress += delta / BLINK_DURATION;
-          // 0→1 closing, 1→2 opening
-          const blinkWeight = blinkProgress <= 1
-            ? blinkProgress
-            : Math.max(0, 2 - blinkProgress);
+        // ── Eyes closed (listening) or idle blink ──
+        const blinkLeftIdx = dict['blink_left'];
+        const blinkRightIdx = dict['blink_right'];
 
-          const blinkLeftIdx = dict['blink_left'];
-          const blinkRightIdx = dict['blink_right'];
-          if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = blinkWeight;
-          if (blinkRightIdx !== undefined) influences[blinkRightIdx] = blinkWeight;
+        if (eyesClosedRef.current) {
+          // Smoothly close eyes while listening
+          const closedTarget = 1;
+          if (blinkLeftIdx !== undefined) {
+            influences[blinkLeftIdx] = THREE.MathUtils.lerp(influences[blinkLeftIdx], closedTarget, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
+          }
+          if (blinkRightIdx !== undefined) {
+            influences[blinkRightIdx] = THREE.MathUtils.lerp(influences[blinkRightIdx], closedTarget, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
+          }
+          // Reset blink cycle so it doesn't fire immediately after eyes reopen
+          blinkProgress = -1;
+          nextBlinkTime = elapsed + BLINK_MIN_INTERVAL + Math.random() * (BLINK_MAX_INTERVAL - BLINK_MIN_INTERVAL);
+        } else {
+          // ── Idle blink ──
+          if (blinkProgress < 0 && elapsed >= nextBlinkTime) {
+            blinkProgress = 0;
+          }
+          if (blinkProgress >= 0) {
+            blinkProgress += delta / BLINK_DURATION;
+            // 0→1 closing, 1→2 opening
+            const blinkWeight = blinkProgress <= 1
+              ? blinkProgress
+              : Math.max(0, 2 - blinkProgress);
 
-          if (blinkProgress >= 2) {
-            blinkProgress = -1;
-            nextBlinkTime = elapsed + BLINK_MIN_INTERVAL + Math.random() * (BLINK_MAX_INTERVAL - BLINK_MIN_INTERVAL);
-            if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = 0;
-            if (blinkRightIdx !== undefined) influences[blinkRightIdx] = 0;
+            if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = blinkWeight;
+            if (blinkRightIdx !== undefined) influences[blinkRightIdx] = blinkWeight;
+
+            if (blinkProgress >= 2) {
+              blinkProgress = -1;
+              nextBlinkTime = elapsed + BLINK_MIN_INTERVAL + Math.random() * (BLINK_MAX_INTERVAL - BLINK_MIN_INTERVAL);
+              if (blinkLeftIdx !== undefined) influences[blinkLeftIdx] = 0;
+              if (blinkRightIdx !== undefined) influences[blinkRightIdx] = 0;
+            }
+          } else {
+            // Smoothly open eyes when not blinking and not closed
+            if (blinkLeftIdx !== undefined) {
+              influences[blinkLeftIdx] = THREE.MathUtils.lerp(influences[blinkLeftIdx], 0, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
+            }
+            if (blinkRightIdx !== undefined) {
+              influences[blinkRightIdx] = THREE.MathUtils.lerp(influences[blinkRightIdx], 0, 1 - Math.exp(-VISEME_LERP_SPEED * delta));
+            }
           }
         }
       }
@@ -185,7 +216,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
       }
       renderer.dispose();
     };
-  }, [onReady, setPhoneme]);
+  }, [onReady, setPhoneme, setEyesClosed]);
 
   return <div ref={mountRef} className="three-canvas" />;
 };
