@@ -10,7 +10,7 @@
 const TTS_ENDPOINT = import.meta.env.VITE_TTS_ENDPOINT as string ?? '/api/tts';
 
 /** Set to true to save each TTS response (audio + phonemes) to test_data/ via the dev server. */
-export const SAVE_TEST_DATA = true;
+export const SAVE_TEST_DATA = false;
 
 // ─── Types ───────────────────────────────────────────────────────
 export interface PhoneData {
