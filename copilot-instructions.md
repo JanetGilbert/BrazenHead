@@ -25,21 +25,26 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 ## Architecture
 
 ### Frontend (`src/`)
-- **`App.tsx`** — Top-level UI. "Speak" button sends hardcoded test text through `ttsService.speakText()`. Wires viseme callbacks from TTS response to the ThreeScene handle. States: idle / speaking / error.
-- **`ThreeScene.tsx`** — Three.js scene with the head model. Exposes a `ThreeSceneHandle` with `setPhoneme(viseme)` via an `onReady` callback prop. Contains:
+- **`App.tsx`** — Top-level UI. "Speak" button sends hardcoded test text through `ttsService.speakText()`. Wires viseme callbacks from TTS response to the ThreeScene handle. States: idle / speaking / error. When `SAVE_TEST_DATA` is true, registers an **F9 cheat key** that calls `playTestData()` to replay saved test data with lip-sync (no TTS call needed).
+- **`ThreeScene.tsx`** — Three.js scene with the head model (`/assets/dummy/dummy.gltf`, scale 1, rotation `x = π/2`, position `y = -4`). Exposes a `ThreeSceneHandle` with `setPhoneme(viseme)` via an `onReady` callback prop. Finds the face mesh by traversing for the first mesh with `morphTargetInfluences`. Contains:
   - Delta-time animation loop using `THREE.Clock`
   - Viseme lerp system — smoothly interpolates morph target weights toward the target pose each frame (`VISEME_LERP_SPEED = 16`)
-  - Idle blink cycle — random blinks every 2–6 seconds using the `Blink` morph target
+  - Idle blink cycle — random blinks every 2–6 seconds using the `blink_left` / `blink_right` morph targets
 - **`ttsService.ts`** — REST TTS client. `speakText(text, onViseme, onError)` calls the backend proxy, decodes LINEAR16 base64 audio to an `AudioBuffer`, plays it via Web Audio API, and schedules viseme callbacks with `setTimeout` based on each phone's `startTimeSeconds`. Key functions:
   - `synthesize(text)` — POSTs to `/api/tts`, returns `{ audioContent, timestampInfo }`
   - `decodeLinear16(base64, sampleRate)` — converts base64 LINEAR16 PCM to `AudioBuffer`
-  - `playWithVisemes(audioBuffer, timestampInfo, onViseme)` — plays audio and schedules viseme dispatch
-- **`visemeMap.ts`** — Maps Inworld TTS API viseme symbols (Oculus-style: PP, FF, TH, DD, kk, CH, SS, nn, RR, aa, E, ih, oh, ou) AND IPA phoneme fallbacks to the Miku model's morph targets (`Ah`, `Ch`, `U`, `E`, `Oh`, `Hmm`, `Wa`) with per-target weights. `getBlendShapesForViseme(viseme)` returns `MorphTarget[]`.
+  - `playWithVisemes(response, onViseme)` — plays audio and schedules viseme dispatch
+  - `saveTestData(response, label)` — when `SAVE_TEST_DATA` is true, persists audio + phoneme data to `test_data/` via the dev server
+  - `playTestData(onViseme, onError)` — loads `test_data/Test.pcm` + `Test.json` from the dev server and plays back with lip-sync
+  - `SAVE_TEST_DATA` — exported flag; enables saving TTS responses to disk and the F9 cheat key
+- **`visemeMap.ts`** — Maps Inworld TTS API viseme symbols (`sil`, `aei`, `o`, `ee`, `bmp`, `fv`, `l`, `r`, `th`, `qw`, `cdgknstxyz`) to the model's morph targets (`v_aa`, `v_ch`, `v_dd`, `v_ee`, `v_ff`, `v_ih`, `v_kk`, `v_nn`, `v_oh`, `v_ou`, `v_pp`, `v_rr`, `v_sil`, `v_ss`, `v_th`) with per-target weights. `getBlendShapesForViseme(viseme)` returns `MorphTarget[]`.
 - **`vite-env.d.ts`** — Type declarations for `VITE_TTS_ENDPOINT` environment variable.
 
 ### Backend
 - **`api/tts.ts`** — Vercel serverless function. Proxies TTS requests to `https://api.inworld.ai/tts/v1/voice` with `Authorization: Basic {INWORLD_API_KEY}`. Sends `audio_encoding: "LINEAR16"`, `sample_rate_hertz: 48000`, `timestamp_type: "WORD"`. Keeps API key server-side.
-- **`server/dev-token-server.ts`** — Local Express TTS proxy on port 3001 for development. Same logic as `api/tts.ts`. Vite proxies `/api/*` to this server.
+- **`server/dev-token-server.ts`** — Local Express TTS proxy on port 3001 for development. Same logic as `api/tts.ts`. Vite proxies `/api/*` to this server. Also provides:
+  - `POST /api/save-test-data` — saves audio (.pcm) + phoneme data (.json) to `test_data/` (body limit 20MB)
+  - `GET /api/test-data/:filename` — serves files from `test_data/` for playback
 
 ### Configuration
 - **`.env.local`** — Contains `INWORLD_API_KEY` (Basic key from Inworld Studio), `INWORLD_VOICE_ID` (default "Dennis"), `INWORLD_MODEL_ID` (default "inworld-tts-1.5-max"), and `VITE_TTS_ENDPOINT=/api/tts` (client-side). Gitignored via `*.local` pattern.
@@ -48,23 +53,19 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 
 ## Important Notes & Gotchas
 
-1.  **3D Model Pivot Point**: The GLTF model has a pivot point far below its visual center. It's manually positioned at `y = -75` and scaled to `(80, 80, 80)` in `ThreeScene.tsx`. Don't rely on bounding-box centering.
+1.  **React StrictMode Removed**: `StrictMode` was removed from `main.tsx` to prevent double Three.js canvas rendering. Don't re-add without handling cleanup.
 
-2.  **React StrictMode Removed**: `StrictMode` was removed from `main.tsx` to prevent double Three.js canvas rendering. Don't re-add without handling cleanup.
+2.  **Asset Paths**: The GLTF model lives in `public/assets/dummy/` (not `src/assets/`). This is required for Vite production builds — files in `public/` are served as-is. The loader path is `/assets/dummy/dummy.gltf`.
 
-3.  **Asset Paths**: The GLTF model lives in `public/assets/face/` (not `src/assets/`). This is required for Vite production builds — files in `public/` are served as-is. The loader path is `/assets/face/face.gltf`.
+3.  **Inworld Platform Is NOT Legacy**: The user's Inworld account uses the new TTS/LLM Studio platform. Do NOT use `@inworld/web-core` or `@inworld/nodejs-sdk` — those are for the legacy character/scene platform which this account does not have. Use the REST API instead.
 
-4.  **Inworld Platform Is NOT Legacy**: The user's Inworld account uses the new TTS/LLM Studio platform. Do NOT use `@inworld/web-core` or `@inworld/nodejs-sdk` — those are for the legacy character/scene platform which this account does not have. Use the REST API instead.
+4.  **Viseme Mapping**: Inworld TTS API returns `visemeSymbol` on each phone. The mapping in `visemeMap.ts` converts these to morph target weights. If lip-sync looks wrong for certain sounds, adjust the weights there.
 
-5.  **Viseme Mapping**: Inworld TTS API returns `visemeSymbol` on each phone (Oculus-style codes like `PP`, `aa`, `CH`). The mapping in `visemeMap.ts` converts these to morph target weights. If lip-sync looks wrong for certain sounds, adjust the weights there.
+5.  **Audio Format**: The TTS API returns LINEAR16 PCM (raw 16-bit signed integers, little-endian) as base64. This is NOT a standard browser audio format — it must be manually decoded into an `AudioBuffer` via `decodeLinear16()` in `ttsService.ts`. The sample rate is 48000 Hz.
 
-6.  **Audio Format**: The TTS API returns LINEAR16 PCM (raw 16-bit signed integers, little-endian) as base64. This is NOT a standard browser audio format — it must be manually decoded into an `AudioBuffer` via `decodeLinear16()` in `ttsService.ts`. The sample rate is 48000 Hz.
+6.  **WordPress Embed**: Deploy to Vercel, embed via iframe with `allow="microphone"` attribute for browser mic permissions: `<iframe src="https://your-app.vercel.app" allow="microphone"></iframe>`.
 
-7.  **Morph Target Names**: The model mesh is named `"Miku"`. It has 50 morph targets including mouth shapes (`Ah`, `Ch`, `U`, `E`, `Oh`, `Hmm`, `Wa`), eye blinks (`Blink`, `Blink L`, `Blink R`), and expressions. Full list is in the GLTF file's `targetNames`.
-
-8.  **WordPress Embed**: Deploy to Vercel, embed via iframe with `allow="microphone"` attribute for browser mic permissions: `<iframe src="https://your-app.vercel.app" allow="microphone"></iframe>`.
-
-9.  **Viseme Timing**: Viseme callbacks are scheduled with `setTimeout` relative to audio playback start time. Each phone in the TTS response has `startTimeSeconds` and `durationSeconds`. The scheduling happens in `ttsService.ts` `playWithVisemes()`.
+7.  **Viseme Timing**: Viseme callbacks are scheduled with `setTimeout` relative to audio playback start time. Each phone in the TTS response has `startTimeSeconds` and `durationSeconds`. The scheduling happens in `ttsService.ts` `playWithVisemes()`.
 
 ## npm Scripts
 - `npm run dev` — Vite dev server (frontend only)
