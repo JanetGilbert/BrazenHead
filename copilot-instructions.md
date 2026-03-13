@@ -4,7 +4,7 @@ This document provides guidance for AI assistants working on the BrazenHead proj
 
 ## Project Overview
 
-A React/TypeScript app built with Vite that displays a rigged 3D head model (Three.js) connected to Inworld.ai's REST TTS API for text-to-speech with real-time lip-sync animation via viseme data. Currently in test mode with a hardcoded string; conversation/LLM integration is planned for later.
+A React/TypeScript app built with Vite that displays a rigged 3D head model (Three.js) as an interactive conversational oracle. User speech is captured via microphone, transcribed with HuggingFace Whisper (STT), sent to a HuggingFace-hosted LLM for a conversational reply, then spoken aloud via Inworld.ai's REST TTS API with real-time lip-sync animation via viseme data.
 
 ### Key Technologies
 - React 19 + TypeScript
@@ -13,6 +13,7 @@ A React/TypeScript app built with Vite that displays a rigged 3D head model (Thr
 - Inworld.ai REST TTS API (`POST https://api.inworld.ai/tts/v1/voice`) — returns base64 audio + per-phone viseme symbols with timing
 - Web Audio API — browser-side audio decoding (LINEAR16 PCM) and playback
 - Express (local dev TTS proxy server)
+- HuggingFace Inference API — chat completions via `Qwen/Qwen2.5-7B-Instruct` (OpenAI-compatible endpoint at `https://router.huggingface.co/v1`)
 - Vercel (deployment target — serverless functions + static hosting)
 
 ### Inworld Platform Context
@@ -25,7 +26,8 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 ## Architecture
 
 ### Frontend (`src/`)
-- **`App.tsx`** — Top-level UI. "Speak" button sends hardcoded test text through `ttsService.speakText()`. Wires viseme callbacks from TTS response to the ThreeScene handle. States: idle / speaking / error. When `SAVE_TEST_DATA` is true, registers an **F9 cheat key** that calls `playTestData()` to replay saved test data with lip-sync (no TTS call needed).
+- **`App.tsx`** — Top-level UI and conversation controller. States: idle / recording / processing / speaking / error. Maintains multi-turn conversation history in a ref (initialized with the system prompt from `chatService.ts`). Flow: "Speak" button → mic recording → "Done" button → STT transcription → LLM chat → TTS with lip-sync. When `SAVE_TEST_DATA` is true, registers an **F9 cheat key** that calls `playTestData()` to replay saved test data with lip-sync (no API calls needed).
+- **`chatService.ts`** — LLM conversation client. `sendChat(messages)` POSTs to `/api/chat` (server-side proxy) and returns the assistant's reply text. Exports `ChatMessage` type and `SYSTEM_PROMPT` constant (defines the Brazen Head character: ancient bronze oracle, brief/cryptic responses, 1-3 sentences max).
 - **`ThreeScene.tsx`** — Three.js scene with the head model (`/assets/dummy/dummy.gltf`, scale 1, rotation `x = π/2`, position `y = -4`). Exposes a `ThreeSceneHandle` with `setPhoneme(viseme)` via an `onReady` callback prop. Finds the face mesh by traversing for the first mesh with `morphTargetInfluences`. Contains:
   - Delta-time animation loop using `THREE.Clock`
   - Viseme lerp system — smoothly interpolates morph target weights toward the target pose each frame (`VISEME_LERP_SPEED = 16`)
@@ -41,13 +43,14 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 - **`vite-env.d.ts`** — Type declarations for `VITE_TTS_ENDPOINT` environment variable.
 
 ### Backend
+- **`api/chat.ts`** — Vercel serverless function. Proxies chat requests to `https://router.huggingface.co/v1/chat/completions` with `Authorization: Bearer {HUGGINGFACE_API_KEY}`. Accepts `{ messages }` array, sends to HuggingFace with `max_tokens: 150`, returns `{ reply }`. Model configurable via `HUGGINGFACE_CHAT_MODEL` env var (default `Qwen/Qwen2.5-7B-Instruct`). Keeps API key server-side.
 - **`api/tts.ts`** — Vercel serverless function. Proxies TTS requests to `https://api.inworld.ai/tts/v1/voice` with `Authorization: Basic {INWORLD_API_KEY}`. Sends `audio_encoding: "LINEAR16"`, `sample_rate_hertz: 48000`, `timestamp_type: "WORD"`. Keeps API key server-side.
-- **`server/dev-token-server.ts`** — Local Express TTS proxy on port 3001 for development. Same logic as `api/tts.ts`. Vite proxies `/api/*` to this server. Also provides:
+- **`server/dev-token-server.ts`** — Local Express proxy on port 3001 for development. Mirrors all three serverless functions (`/api/stt`, `/api/chat`, `/api/tts`). Vite proxies `/api/*` to this server. Also provides:
   - `POST /api/save-test-data` — saves audio (.pcm) + phoneme data (.json) to `test_data/` (body limit 20MB)
   - `GET /api/test-data/:filename` — serves files from `test_data/` for playback
 
 ### Configuration
-- **`.env.local`** — Contains `INWORLD_API_KEY` (Basic key from Inworld Studio), `INWORLD_VOICE_ID` (default "Dennis"), `INWORLD_MODEL_ID` (default "inworld-tts-1.5-max"), and `VITE_TTS_ENDPOINT=/api/tts` (client-side). Gitignored via `*.local` pattern.
+- **`.env.local`** — Contains `INWORLD_API_KEY` (Basic key from Inworld Studio), `HUGGINGFACE_API_KEY` (Bearer token, used for both STT and chat), `INWORLD_VOICE_ID` (default "Dennis"), `INWORLD_MODEL_ID` (default "inworld-tts-1.5-max"), `HUGGINGFACE_CHAT_MODEL` (optional, default `Qwen/Qwen2.5-7B-Instruct`), and `VITE_TTS_ENDPOINT=/api/tts` (client-side). Gitignored via `*.local` pattern.
 - **`vite.config.ts`** — Dev proxy: `/api` → `localhost:3001`.
 - **`vercel.json`** — API route rewrite for production.
 
@@ -78,8 +81,9 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 - When adding new 3D objects, be aware of their pivot points and be prepared to manually adjust positions.
 - If adding `StrictMode` back, ensure Three.js cleanup on unmount.
 - Viseme weights will need tuning once TTS audio is flowing — log viseme events to console and visually verify each mouth shape.
-- **Next major feature**: Add conversation flow — mic input → speech-to-text → LLM (Inworld LLM Router or external) → TTS → lip sync.
 - Consider adding emotion-to-expression mapping to drive eyebrow/expression morph targets.
+- Consider adding a UI button to reset conversation history (currently resets on page reload).
+- The system prompt in `chatService.ts` (`SYSTEM_PROMPT`) defines the Brazen Head character. Adjust tone, verbosity, or personality there.
 
 ## Maintaining These Instructions
 

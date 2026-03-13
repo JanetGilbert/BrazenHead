@@ -3,6 +3,8 @@ import ThreeScene from './ThreeScene';
 import type { ThreeSceneHandle } from './ThreeScene';
 import { speakText, playTestData, SAVE_TEST_DATA } from './ttsService';
 import { startRecording, stopRecordingAndTranscribe } from './sttService';
+import { sendChat, SYSTEM_PROMPT } from './chatService';
+import type { ChatMessage } from './chatService';
 import './App.css';
 
 function App() {
@@ -10,6 +12,7 @@ function App() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const sceneHandleRef = useRef<ThreeSceneHandle | null>(null);
+  const conversationRef = useRef<ChatMessage[]>([SYSTEM_PROMPT]);
 
   /** Called by ThreeScene once the model is loaded. */
   const handleSceneReady = useCallback((handle: ThreeSceneHandle) => {
@@ -39,7 +42,7 @@ function App() {
     }
   }, [status]);
 
-  /** Stop recording → transcribe → echo via TTS. */
+  /** Stop recording → transcribe → chat LLM → speak reply via TTS. */
   const handleDone = useCallback(async () => {
     if (status !== 'recording') return;
     setStatus('processing');
@@ -51,12 +54,22 @@ function App() {
         return;
       }
       console.log('[STT] transcript:', transcript);
+
+      // Build conversation with user message
+      conversationRef.current = [...conversationRef.current, { role: 'user', content: transcript }];
+
+      const reply = await sendChat(conversationRef.current);
+      console.log('[Chat] reply:', reply);
+
+      // Append assistant reply to history
+      conversationRef.current = [...conversationRef.current, { role: 'assistant', content: reply }];
+
       setStatus('speaking');
-      await speakText(transcript, visemeHandler, errorHandler);
+      await speakText(reply, visemeHandler, errorHandler);
       setStatus('idle');
     } catch (err) {
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'STT/TTS failed');
+      setErrorMsg(err instanceof Error ? err.message : 'STT/Chat/TTS failed');
     }
   }, [status, visemeHandler, errorHandler]);
 

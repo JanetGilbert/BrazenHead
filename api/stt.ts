@@ -37,7 +37,7 @@ export default async function handler(
   try {
     const client = new InferenceClient(apiKey);
     const result = await client.automaticSpeechRecognition({
-      model: 'openai/whisper-large-v3',
+      model: process.env.HUGGINGFACE_STT,
       data: req.body,
     });
     return res.status(200).json(result);
