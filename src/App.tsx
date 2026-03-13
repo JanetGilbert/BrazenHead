@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import ThreeScene from './ThreeScene';
 import type { ThreeSceneHandle } from './ThreeScene';
-import { speakText } from './ttsService';
+import { speakText, playTestData, SAVE_TEST_DATA } from './ttsService';
 import './App.css';
 
 const TEST_TEXT = "Hello.";
@@ -40,6 +40,37 @@ function App() {
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'TTS failed');
     }
+  }, [status]);
+
+  // ── Cheat key: press F9 to replay test_data/Test.pcm + Test.json ──
+  useEffect(() => {
+    if (!SAVE_TEST_DATA) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'F9' || status === 'speaking') return;
+      e.preventDefault();
+      setStatus('speaking');
+      setErrorMsg('');
+
+      playTestData(
+        (viseme) => {
+          console.log('viseme:', viseme);
+          sceneHandleRef.current?.setPhoneme(viseme);
+        },
+        (msg) => {
+          setStatus('error');
+          setErrorMsg(msg);
+        },
+      )
+        .then(() => setStatus('idle'))
+        .catch((err) => {
+          setStatus('error');
+          setErrorMsg(err instanceof Error ? err.message : 'Playback failed');
+        });
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [status]);
 
   return (

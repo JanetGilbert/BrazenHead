@@ -9,6 +9,9 @@
 // ─── Configuration ───────────────────────────────────────────────
 const TTS_ENDPOINT = import.meta.env.VITE_TTS_ENDPOINT as string ?? '/api/tts';
 
+/** Set to true to save each TTS response (audio + phonemes) to test_data/ via the dev server. */
+export const SAVE_TEST_DATA = true;
+
 // ─── Types ───────────────────────────────────────────────────────
 export interface PhoneData {
   phoneSymbol: string;
@@ -65,7 +68,28 @@ export async function synthesize(text: string): Promise<TTSResponse> {
     throw new Error(`TTS request failed (${res.status}): ${detail}`);
   }
 
-  return res.json();
+  const response: TTSResponse = await res.json();
+
+  if (SAVE_TEST_DATA) {
+    saveTestData(response, text);
+  }
+
+  return response;
+}
+
+/**
+ * Persist a TTS response to disk via the dev server (for offline test data).
+ */
+function saveTestData(response: TTSResponse, label: string): void {
+  fetch('/api/save-test-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      audioContent: response.audioContent,
+      timestampInfo: response.timestampInfo,
+      label,
+    }),
+  }).catch((err) => console.warn('[saveTestData]', err));
 }
 
 /**
@@ -197,5 +221,37 @@ export async function speakText(
   onError?: ErrorCallback,
 ): Promise<void> {
   const response = await synthesize(text);
+  await playWithVisemes(response, onViseme, onError);
+}
+
+/**
+ * Load a saved test data pair (Test.pcm + Test.json) from the dev server
+ * and play it back with lip-sync, bypassing TTS synthesis entirely.
+ */
+export async function playTestData(
+  onViseme: VisemeCallback,
+  onError?: ErrorCallback,
+): Promise<void> {
+  const [pcmRes, jsonRes] = await Promise.all([
+    fetch('/api/test-data/Test.pcm'),
+    fetch('/api/test-data/Test.json'),
+  ]);
+
+  if (!pcmRes.ok || !jsonRes.ok) {
+    const msg = 'Failed to load test data (Test.pcm / Test.json)';
+    onError?.(msg);
+    throw new Error(msg);
+  }
+
+  const pcmBuffer = await pcmRes.arrayBuffer();
+  const bytes = new Uint8Array(pcmBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const audioContent = btoa(binary);
+  const timestampInfo = await jsonRes.json();
+
+  const response: TTSResponse = { audioContent, timestampInfo };
   await playWithVisemes(response, onViseme, onError);
 }
