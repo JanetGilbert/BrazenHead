@@ -14,6 +14,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
+import { InferenceClient } from '@huggingface/inference';
 
 dotenv.config({ path: '.env.local' });
 
@@ -23,6 +24,37 @@ const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
+app.use(express.raw({ type: 'audio/*', limit: '20mb' }));
+
+// ─── STT proxy (HuggingFace Whisper) ────────────────────────────
+app.post('/api/stt', async (req, res) => {
+  const apiKey = process.env.HUGGINGFACE_API_KEY;
+
+  if (!apiKey) {
+    console.error('Missing HUGGINGFACE_API_KEY');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
+
+  if (!req.body || req.body.length === 0) {
+    return res.status(400).json({ error: 'Missing audio data' });
+  }
+
+  try {
+    const client = new InferenceClient(apiKey);
+    const contentType = req.headers['content-type'] || 'audio/webm';
+    const audioBlob = new Blob([req.body], { type: contentType });
+    const result = await client.automaticSpeechRecognition({
+      model: 'openai/whisper-large-v3',
+      provider: 'hf-inference',
+      data: audioBlob,
+    });
+    return res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('STT proxy error:', message);
+    return res.status(500).json({ error: 'STT proxy error', detail: message });
+  }
+});
 
 app.post('/api/tts', async (req, res) => {
   const apiKey = process.env.INWORLD_API_KEY;

@@ -2,12 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import ThreeScene from './ThreeScene';
 import type { ThreeSceneHandle } from './ThreeScene';
 import { speakText, playTestData, SAVE_TEST_DATA } from './ttsService';
+import { startRecording, stopRecordingAndTranscribe } from './sttService';
 import './App.css';
 
-const TEST_TEXT = "Hello.";
-
 function App() {
-  const [status, setStatus] = useState<'idle' | 'speaking' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'recording' | 'processing' | 'speaking' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
   const sceneHandleRef = useRef<ThreeSceneHandle | null>(null);
@@ -17,30 +16,49 @@ function App() {
     sceneHandleRef.current = handle;
   }, []);
 
-  /** Send test text to TTS and play with lip-sync. */
+  const visemeHandler = useCallback((viseme: string) => {
+    console.log('viseme:', viseme);
+    sceneHandleRef.current?.setPhoneme(viseme);
+  }, []);
+
+  const errorHandler = useCallback((msg: string) => {
+    setStatus('error');
+    setErrorMsg(msg);
+  }, []);
+
+  /** Start mic recording. */
   const handleSpeak = useCallback(async () => {
-    if (status === 'speaking') return;
-    setStatus('speaking');
+    if (status !== 'idle') return;
     setErrorMsg('');
+    try {
+      await startRecording();
+      setStatus('recording');
+    } catch (err) {
+      setStatus('error');
+      setErrorMsg(err instanceof Error ? err.message : 'Mic access failed');
+    }
+  }, [status]);
+
+  /** Stop recording → transcribe → echo via TTS. */
+  const handleDone = useCallback(async () => {
+    if (status !== 'recording') return;
+    setStatus('processing');
 
     try {
-      await speakText(
-        TEST_TEXT,
-        (viseme) => {
-          console.log("viseme:" +viseme);
-          sceneHandleRef.current?.setPhoneme(viseme);
-        },
-        (msg) => {
-          setStatus('error');
-          setErrorMsg(msg);
-        },
-      );
+      const transcript = await stopRecordingAndTranscribe();
+      if (!transcript) {
+        setStatus('idle');
+        return;
+      }
+      console.log('[STT] transcript:', transcript);
+      setStatus('speaking');
+      await speakText(transcript, visemeHandler, errorHandler);
       setStatus('idle');
     } catch (err) {
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'TTS failed');
+      setErrorMsg(err instanceof Error ? err.message : 'STT/TTS failed');
     }
-  }, [status]);
+  }, [status, visemeHandler, errorHandler]);
 
   // ── Cheat key: press F9 to replay test_data/Test.pcm + Test.json ──
   useEffect(() => {
@@ -52,16 +70,7 @@ function App() {
       setStatus('speaking');
       setErrorMsg('');
 
-      playTestData(
-        (viseme) => {
-          console.log('viseme:', viseme);
-          sceneHandleRef.current?.setPhoneme(viseme);
-        },
-        (msg) => {
-          setStatus('error');
-          setErrorMsg(msg);
-        },
-      )
+      playTestData(visemeHandler, errorHandler)
         .then(() => setStatus('idle'))
         .catch((err) => {
           setStatus('error');
@@ -71,7 +80,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [status]);
+  }, [status, visemeHandler, errorHandler]);
 
   return (
     <div className="App">
@@ -83,6 +92,16 @@ function App() {
           <button className="hud-btn connect-btn" onClick={handleSpeak}>
             Speak
           </button>
+        )}
+
+        {status === 'recording' && (
+          <button className="hud-btn mic-btn active" onClick={handleDone}>
+            Done
+          </button>
+        )}
+
+        {status === 'processing' && (
+          <span className="hud-status">Processing…</span>
         )}
 
         {status === 'speaking' && (
