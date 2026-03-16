@@ -32,7 +32,7 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ onReady }) => {
   const eyesClosedRef = useRef(false);
 
   /**
-   * Called by the Inworld service when a new phoneme arrives.
+   * Called by the tts service when a new phoneme arrives.
    * Sets the "target" morph-target weights; the render loop lerps toward them.
    */
   const setPhoneme = useCallback((phoneme: string) => {

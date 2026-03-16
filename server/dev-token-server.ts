@@ -4,7 +4,7 @@
  * Run with: npx tsx server/dev-token-server.ts
  * (or: npm run dev:server)
  *
- * Proxies /api/tts requests to the Inworld TTS REST API,
+ * Proxies /api/tts requests to the TTS REST API,
  * keeping the API key server-side.
  *
  * Vite's dev proxy forwards /api/* to this server on port 3001.
@@ -19,7 +19,7 @@ import { InferenceClient } from '@huggingface/inference';
 dotenv.config({ path: '.env.local' });
 
 const PORT = 3001;
-const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
+const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
 const app = express();
 app.use(cors());
@@ -106,10 +106,10 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.post('/api/tts', async (req, res) => {
-  const apiKey = process.env.INWORLD_API_KEY;
+  const apiKey = process.env.GOOGLE_TTS_KEY;
 
   if (!apiKey) {
-    console.error('Missing INWORLD_API_KEY in .env.local');
+    console.error('Missing GOOGLE_TTS_KEY in .env.local');
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -119,32 +119,32 @@ app.post('/api/tts', async (req, res) => {
   }
 
   try {
-    const ttsResponse = await fetch(INWORLD_TTS_URL, {
+    const ttsResponse = await fetch(`${GOOGLE_TTS_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${apiKey}`,
       },
       body: JSON.stringify({
-        text,
-        voiceId : process.env.INWORLD_VOICE_ID ?? 'Dennis',
-        modelId: process.env.INWORLD_MODEL_ID ?? 'inworld-tts-1.5-max',
-        audio_config: {
-          audio_encoding: 'LINEAR16',
-          sample_rate_hertz: 48000,
+        input: { text },
+        voice: {
+          languageCode: 'en-US',
+          name: 'en-US-Neural2-A',
         },
-        timestamp_type: 'WORD',
+        audioConfig: {
+          audioEncoding: 'LINEAR16',
+          sampleRateHertz: 48000,
+        },
       }),
     });
 
     if (!ttsResponse.ok) {
       const detail = await ttsResponse.text().catch(() => '');
-      console.error('Inworld TTS error:', ttsResponse.status, detail);
+      console.error('Google TTS error:', ttsResponse.status, detail);
       return res.status(ttsResponse.status).json({ error: 'TTS synthesis failed', detail });
     }
 
     const data = await ttsResponse.json();
-    return res.json(data);
+    return res.json({ audioContent: data.audioContent });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('TTS proxy error:', message);

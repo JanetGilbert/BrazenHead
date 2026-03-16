@@ -4,24 +4,25 @@ This document provides guidance for AI assistants working on the BrazenHead proj
 
 ## Project Overview
 
-A React/TypeScript app built with Vite that displays a rigged 3D head model (Three.js) as an interactive conversational oracle. User speech is captured via microphone, transcribed with HuggingFace Whisper (STT), sent to a HuggingFace-hosted LLM for a conversational reply, then spoken aloud via Inworld.ai's REST TTS API with real-time lip-sync animation via viseme data.
+A React/TypeScript app built with Vite that displays a rigged 3D head model (Three.js) as an interactive conversational oracle. User speech is captured via microphone, transcribed with HuggingFace Whisper (STT), sent to a HuggingFace-hosted LLM for a conversational reply, then spoken aloud via Google Cloud Text-to-Speech API with real-time lip-sync animation via client-side viseme generation.
 
 ### Key Technologies
 - React 19 + TypeScript
 - Vite 7
 - Three.js (GLTF model with 50 morph targets)
-- Inworld.ai REST TTS API (`POST https://api.inworld.ai/tts/v1/voice`) — returns base64 audio + per-phone viseme symbols with timing
+- Google Cloud Text-to-Speech API (`POST https://texttospeech.googleapis.com/v1/text:synthesize?key={GOOGLE_TTS_KEY}`) — returns base64 audio (LINEAR16 PCM)
 - Web Audio API — browser-side audio decoding (LINEAR16 PCM) and playback
+- Client-side viseme generation — text-based phoneme-to-viseme mapping (no API phoneme data dependency)
 - Express (local dev TTS proxy server)
 - HuggingFace Inference API — chat completions via `Qwen/Qwen2.5-7B-Instruct` (OpenAI-compatible endpoint at `https://router.huggingface.co/v1`)
 - Vercel (deployment target — serverless functions + static hosting)
 
-### Inworld Platform Context
-The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio), NOT the legacy character/scene platform. This means:
-- There are **no scenes or characters** — the dashboard has TTS Playground, Voices, Speech-to-Speech, LLM Router.
-- The old `@inworld/web-core` and `@inworld/nodejs-sdk` packages are **not used**.
-- Authentication uses a **Basic API key** (`Authorization: Basic {key}`), not JWT key/secret pairs.
-- The TTS API endpoint is `POST https://api.inworld.ai/tts/v1/voice`.
+### Google Cloud TTS Configuration
+The TTS integration uses **Google Cloud Text-to-Speech API**:
+- **API Key**: Stored in `.env.local` as `GOOGLE_TTS_KEY` (API key authentication, passed as query parameter)
+- **Voice**: Fixed to `en-US-Neural2-A` (professional neural voice)
+- **Audio Encoding**: LINEAR16 PCM at 48000 Hz (no phoneme timing data from API)
+- **Viseme Generation**: Client-side only — text is mapped to viseme symbols via grapheme rules in `visemeGenerator.ts`, then distributed across the audio duration
 
 ## Architecture
 
@@ -32,25 +33,25 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
   - Delta-time animation loop using `THREE.Clock`
   - Viseme lerp system — smoothly interpolates morph target weights toward the target pose each frame (`VISEME_LERP_SPEED = 16`)
   - Idle blink cycle — random blinks every 2–6 seconds using the `blink_left` / `blink_right` morph targets
-- **`ttsService.ts`** — REST TTS client. `speakText(text, onViseme, onError)` calls the backend proxy, decodes LINEAR16 base64 audio to an `AudioBuffer`, plays it via Web Audio API, and schedules viseme callbacks with `setTimeout` based on each phone's `startTimeSeconds`. Key functions:
-  - `synthesize(text)` — POSTs to `/api/tts`, returns `{ audioContent, timestampInfo }`
+- **`ttsService.ts`** — REST TTS client. `speakText(text, onViseme, onError)` calls the backend proxy, decodes LINEAR16 base64 audio to an `AudioBuffer`, plays it via Web Audio API, and schedules viseme callbacks with `setTimeout` based on each phone's `startTimeSeconds`. Uses client-side viseme generation via `generateVisemes()` (no API phoneme data). Key functions:
+  - `synthesize(text)` — POSTs to `/api/tts`, returns `{ audioContent }`
   - `decodeLinear16(base64, sampleRate)` — converts base64 LINEAR16 PCM to `AudioBuffer`
-  - `playWithVisemes(response, onViseme)` — plays audio and schedules viseme dispatch
+  - `playWithVisemes(response, onViseme)` — plays audio and schedules viseme dispatch via client-side generated phoneme timing
   - `saveTestData(response, label)` — when `SAVE_TEST_DATA` is true, persists audio + phoneme data to `test_data/` via the dev server
   - `playTestData(onViseme, onError)` — loads `test_data/Test.pcm` + `Test.json` from the dev server and plays back with lip-sync
   - `SAVE_TEST_DATA` — exported flag; enables saving TTS responses to disk and the F9 cheat key
-- **`visemeMap.ts`** — Maps Inworld TTS API viseme symbols (`sil`, `aei`, `o`, `ee`, `bmp`, `fv`, `l`, `r`, `th`, `qw`, `cdgknstxyz`) to the model's morph targets (`v_aa`, `v_ch`, `v_dd`, `v_ee`, `v_ff`, `v_ih`, `v_kk`, `v_nn`, `v_oh`, `v_ou`, `v_pp`, `v_rr`, `v_sil`, `v_ss`, `v_th`) with per-target weights. `getBlendShapesForViseme(viseme)` returns `MorphTarget[]`.
+- **`visemeMap.ts`** — Maps client-side generated viseme symbols (`sil`, `aei`, `o`, `ee`, `bmp`, `fv`, `l`, `r`, `th`, `qw`, `cdgknstxyz` from `visemeGenerator.ts`) to the model's morph targets (`v_aa`, `v_ch`, `v_dd`, `v_ee`, `v_ff`, `v_ih`, `v_kk`, `v_nn`, `v_oh`, `v_ou`, `v_pp`, `v_rr`, `v_sil`, `v_ss`, `v_th`) with per-target weights. `getBlendShapesForViseme(viseme)` returns `MorphTarget[]`.
 - **`vite-env.d.ts`** — Type declarations for `VITE_TTS_ENDPOINT` environment variable.
 
 ### Backend
 - **`api/chat.ts`** — Vercel serverless function. Proxies chat requests to `https://router.huggingface.co/v1/chat/completions` with `Authorization: Bearer {HUGGINGFACE_API_KEY}`. Accepts `{ messages }` array, sends to HuggingFace with `max_tokens: 150`, returns `{ reply }`. Model configurable via `HUGGINGFACE_CHAT_MODEL` env var (default `Qwen/Qwen2.5-7B-Instruct`). Keeps API key server-side.
-- **`api/tts.ts`** — Vercel serverless function. Proxies TTS requests to `https://api.inworld.ai/tts/v1/voice` with `Authorization: Basic {INWORLD_API_KEY}`. Sends `audio_encoding: "LINEAR16"`, `sample_rate_hertz: 48000`, `timestamp_type: "WORD"`. Keeps API key server-side.
+- **`api/tts.ts`** — Vercel serverless function. Proxies TTS requests to `https://texttospeech.googleapis.com/v1/text:synthesize` with API key in query parameter. Accepts `{ text }`, sends to Google Cloud TTS with voice `en-US-Neural2-A`, audioEncoding `LINEAR16`, sampleRateHertz `48000`, returns `{ audioContent }`. Keeps API key server-side.
 - **`server/dev-token-server.ts`** — Local Express proxy on port 3001 for development. Mirrors all three serverless functions (`/api/stt`, `/api/chat`, `/api/tts`). Vite proxies `/api/*` to this server. Also provides:
   - `POST /api/save-test-data` — saves audio (.pcm) + phoneme data (.json) to `test_data/` (body limit 20MB)
   - `GET /api/test-data/:filename` — serves files from `test_data/` for playback
 
 ### Configuration
-- **`.env.local`** — Contains `INWORLD_API_KEY` (Basic key from Inworld Studio), `HUGGINGFACE_API_KEY` (Bearer token, used for both STT and chat), `INWORLD_VOICE_ID` (default "Dennis"), `INWORLD_MODEL_ID` (default "inworld-tts-1.5-max"), `HUGGINGFACE_CHAT_MODEL` (optional, default `Qwen/Qwen2.5-7B-Instruct`), and `VITE_TTS_ENDPOINT=/api/tts` (client-side). Gitignored via `*.local` pattern.
+- **`.env.local`** — Contains `GOOGLE_TTS_KEY` (API key for Google Cloud Text-to-Speech), `HUGGINGFACE_API_KEY` (Bearer token, used for both STT and chat), `HUGGINGFACE_CHAT_MODEL` (optional, default `Qwen/Qwen2.5-7B-Instruct`), and `VITE_TTS_ENDPOINT=/api/tts` (client-side). Gitignored via `*.local` pattern.
 - **`vite.config.ts`** — Dev proxy: `/api` → `localhost:3001`.
 - **`vercel.json`** — API route rewrite for production.
 
@@ -60,15 +61,15 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 
 2.  **Asset Paths**: The GLTF model lives in `public/assets/dummy/` (not `src/assets/`). This is required for Vite production builds — files in `public/` are served as-is. The loader path is `/assets/dummy/dummy.gltf`.
 
-3.  **Inworld Platform Is NOT Legacy**: The user's Inworld account uses the new TTS/LLM Studio platform. Do NOT use `@inworld/web-core` or `@inworld/nodejs-sdk` — those are for the legacy character/scene platform which this account does not have. Use the REST API instead.
+3.  **Google Cloud TTS Integration**: Uses the REST API endpoint with query-parameter authentication (`?key={API_KEY}`). The API returns base64 LINEAR16 PCM audio only (no phoneme timing data). Viseme generation is entirely client-side via text-to-phoneme rules in `visemeGenerator.ts`.
 
-4.  **Viseme Mapping**: Inworld TTS API returns `visemeSymbol` on each phone. The mapping in `visemeMap.ts` converts these to morph target weights. If lip-sync looks wrong for certain sounds, adjust the weights there.
+4.  **Client-Side Viseme Generation**: The `visemeGenerator.ts` module converts text to a sequence of viseme symbols using grapheme-to-phoneme rules and distributes their timing proportionally across the audio duration. This means viseme accuracy depends on text-based heuristics, not speech recognition or API phoneme data.
 
 5.  **Audio Format**: The TTS API returns LINEAR16 PCM (raw 16-bit signed integers, little-endian) as base64. This is NOT a standard browser audio format — it must be manually decoded into an `AudioBuffer` via `decodeLinear16()` in `ttsService.ts`. The sample rate is 48000 Hz.
 
 6.  **WordPress Embed**: Deploy to Vercel, embed via iframe with `allow="microphone"` attribute for browser mic permissions: `<iframe src="https://your-app.vercel.app" allow="microphone"></iframe>`.
 
-7.  **Viseme Timing**: Viseme callbacks are scheduled with `setTimeout` relative to audio playback start time. Each phone in the TTS response has `startTimeSeconds` and `durationSeconds`. The scheduling happens in `ttsService.ts` `playWithVisemes()`.
+7.  **Viseme Timing**: Viseme callbacks are scheduled with `setTimeout` relative to audio playback start time. Each phone in the client-generated viseme list has `startTimeSeconds` and `durationSeconds`. The scheduling happens in `ttsService.ts` `playWithVisemes()`.
 
 ## npm Scripts
 - `npm run dev` — Vite dev server (frontend only)

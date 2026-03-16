@@ -1,16 +1,16 @@
 /**
- * Server-side TTS proxy endpoint for Inworld.ai.
+ * Server-side TTS proxy endpoint for Google Cloud Text-to-Speech.
  *
- * Proxies TTS requests to the Inworld REST API, keeping the API key server-side.
+ * Proxies TTS requests to the Google Cloud Text-to-Speech API, keeping the API key server-side.
  *
  * Designed as a Vercel serverless function (api/tts.ts).
  *
  * Environment variables required:
- *   INWORLD_API_KEY — Inworld Basic API key (from your dashboard)
+ *   GOOGLE_TTS_KEY — Google Cloud Text-to-Speech API key
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
+const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
 export default async function handler(
   req: VercelRequest,
@@ -20,9 +20,9 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.INWORLD_API_KEY;
+  const apiKey = process.env.GOOGLE_TTS_KEY;
   if (!apiKey) {
-    console.error('Missing INWORLD_API_KEY env var');
+    console.error('Missing GOOGLE_TTS_KEY env var');
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -32,31 +32,32 @@ export default async function handler(
   }
 
   try {
-    const ttsResponse = await fetch(INWORLD_TTS_URL, {
+    const ttsResponse = await fetch(`${GOOGLE_TTS_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${apiKey}`,
       },
       body: JSON.stringify({
-        text,
-        voice_id: process.env.INWORLD_VOICE_ID ?? 'Dennis',
-        model_id: process.env.INWORLD_MODEL_ID ?? 'inworld-tts-1.5-max',
-        audio_config: {
-          audio_encoding: 'LINEAR16',
-          sample_rate_hertz: 48000,
+        input: { text },
+        voice: {
+          languageCode: 'en-US',
+          name: 'en-US-Neural2-A',
+        },
+        audioConfig: {
+          audioEncoding: 'LINEAR16',
+          sampleRateHertz: 48000,
         },
       }),
     });
 
     if (!ttsResponse.ok) {
       const detail = await ttsResponse.text().catch(() => '');
-      console.error('Inworld TTS error:', ttsResponse.status, detail);
+      console.error('Google TTS error:', ttsResponse.status, detail);
       return res.status(ttsResponse.status).json({ error: 'TTS synthesis failed', detail });
     }
 
     const data = await ttsResponse.json();
-    return res.status(200).json(data);
+    return res.status(200).json({ audioContent: data.audioContent });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('TTS proxy error:', message);

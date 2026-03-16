@@ -1,5 +1,5 @@
 /**
- * Maps Inworld TTS viseme symbols to the model's morph target blend shapes.
+ * Maps TTS viseme symbols to the model's morph target blend shapes.
  *
  * Inworld visemes:  sil, aei, o, ee, bmp, fv, l, r, th, qw, cdgknstxyz
  * Model blend shapes (dummy.gltf):

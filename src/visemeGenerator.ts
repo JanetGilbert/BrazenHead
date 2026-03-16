@@ -1,6 +1,6 @@
 /**
  * Generates viseme timing data from text + decoded audio,
- * replacing the need for server-side phoneme data from Inworld.
+ * replacing the need for server-side phoneme data.
  *
  * Pipeline:
  *   1. Convert text → viseme symbol sequence via grapheme rules
