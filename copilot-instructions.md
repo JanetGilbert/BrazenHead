@@ -70,6 +70,8 @@ The user's Inworld account is on the **newer TTS/LLM platform** (Inworld Studio)
 
 7.  **Viseme Timing**: Viseme callbacks are scheduled with `setTimeout` relative to audio playback start time. Each phone in the TTS response has `startTimeSeconds` and `durationSeconds`. The scheduling happens in `ttsService.ts` `playWithVisemes()`.
 
+8. **.env.local** Do not edit .env.local. Tell the user what to edit.
+
 ## npm Scripts
 - `npm run dev` — Vite dev server (frontend only)
 - `npm run dev:server` — Local TTS proxy server on port 3001
