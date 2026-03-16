@@ -46,7 +46,6 @@ export default async function handler(
           audio_encoding: 'LINEAR16',
           sample_rate_hertz: 48000,
         },
-        timestamp_type: 'WORD',
       }),
     });
 

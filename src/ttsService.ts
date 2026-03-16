@@ -1,10 +1,12 @@
 /**
- * Inworld TTS REST API service.
+ * TTS service with client-side viseme generation.
  *
- * Sends text to the Inworld TTS API via our backend proxy,
- * receives audio (base64) + timestamp/phoneme/viseme data,
- * plays the audio, and drives lip-sync via timed viseme callbacks.
+ * Sends text to the TTS API via our backend proxy,
+ * receives audio (base64), generates lip-sync visemes
+ * from the text + audio amplitude, and drives mouth
+ * animation via timed viseme callbacks.
  */
+import { generateVisemes } from './visemeGenerator';
 
 // ─── Configuration ───────────────────────────────────────────────
 const TTS_ENDPOINT = import.meta.env.VITE_TTS_ENDPOINT as string ?? '/api/tts';
@@ -134,6 +136,7 @@ export async function playWithVisemes(
   response: TTSResponse,
   onViseme: VisemeCallback,
   onError?: ErrorCallback,
+  text?: string,
 ): Promise<void> {
   // Cancel any previous playback
   stopPlayback();
@@ -154,8 +157,13 @@ export async function playWithVisemes(
     throw err;
   }
 
-  // Schedule viseme callbacks based on phone timing data
-  const phones = extractPhones(response);
+  // Prefer API-provided visemes; fall back to text-based generation
+  let phones = extractPhones(response);
+  if (phones.length === 0 && text) {
+    const samples = audioBuffer.getChannelData(0);
+    phones = generateVisemes(text, samples, audioBuffer.sampleRate);
+  }
+
   for (const phone of phones) {
     const timerId = window.setTimeout(() => {
       onViseme(phone.visemeSymbol);
@@ -221,7 +229,7 @@ export async function speakText(
   onError?: ErrorCallback,
 ): Promise<void> {
   const response = await synthesize(text);
-  await playWithVisemes(response, onViseme, onError);
+  await playWithVisemes(response, onViseme, onError, text);
 }
 
 /**
