@@ -42,6 +42,7 @@ export async function stopRecordingAndTranscribe(): Promise<string> {
       mediaRecorder!.stream.getTracks().forEach((t) => t.stop());
 
       const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      console.log("Audiochunks length " + audioChunks.length);
       audioChunks = [];
 
       try {

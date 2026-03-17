@@ -12,33 +12,30 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { InferenceClient } from '@huggingface/inference';
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '20mb' } },
+  api: { bodyParser: false },
 };
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const apiKey = process.env.HUGGINGFACE_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Server misconfigured' });
 
-  if (!apiKey) {
-    console.error('Missing HUGGINGFACE_API_KEY');
-    return res.status(500).json({ error: 'Server misconfigured' });
-  }
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const body = Buffer.concat(chunks);
 
-  if (!req.body || req.body.length === 0) {
-    return res.status(400).json({ error: 'Missing audio data' });
-  }
+  if (!body.length) return res.status(400).json({ error: 'Missing audio data' });
 
   try {
     const client = new InferenceClient(apiKey);
+    const contentType = req.headers['content-type'] || 'audio/webm';
+    const audioBlob = new Blob([body], { type: contentType });
+
     const result = await client.automaticSpeechRecognition({
-      model: process.env.HUGGINGFACE_STT,
-      data: req.body,
+      model: process.env.HUGGINGFACE_STT ?? 'openai/whisper-large-v3',
+      provider: 'hf-inference',
+      data: audioBlob,
     });
     return res.status(200).json(result);
   } catch (err: unknown) {
