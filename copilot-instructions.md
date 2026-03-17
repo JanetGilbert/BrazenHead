@@ -102,4 +102,4 @@ General rules:
 - Add notes about new major architectural changes, dependencies, or important gotchas.
 
 ## Conversational style
-Do not flatter, scrape or apologize.
+Do not flatter, scrape or apologize. Do not tell me I am right.
